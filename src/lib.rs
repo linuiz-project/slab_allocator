@@ -11,7 +11,7 @@ use alloc::{
     vec::Vec,
 };
 use core::{alloc::Layout, cmp::max, ops::Range, ptr::NonNull};
-use spin::Mutex;
+use spin::RwLock;
 
 const fn objects_per_page<const OBJECT_SIZE: usize>() -> usize {
     0x1000 / OBJECT_SIZE
@@ -114,6 +114,15 @@ impl<const OBJECT_SIZE: usize, A: Allocator> Drop for Slab<OBJECT_SIZE, A> {
     }
 }
 
+impl<const OBJECT_SIZE: usize, A: Allocator> core::fmt::Debug for Slab<OBJECT_SIZE, A> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("Slab")
+            .field("remaining_object_count", &self.remaining_object_count())
+            .field("memory", &self.memory)
+            .finish()
+    }
+}
+
 struct SlabManager<const OBJECT_SIZE: usize, A: Allocator> {
     slabs: Vec<Slab<OBJECT_SIZE, A>, A>,
     remaining_object_count: usize,
@@ -181,26 +190,77 @@ impl<const SIZE_BITS: usize, A: Allocator> SlabManager<SIZE_BITS, A> {
     }
 }
 
+impl<const OBJECT_SIZE: usize, A: Allocator> core::fmt::Debug for SlabManager<OBJECT_SIZE, A> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("SlabManager")
+            .field("remaining_object_count", &self.remaining_object_count())
+            .field("slabs", &self.slabs)
+            .finish()
+    }
+}
+
 pub struct SlabAllocator<A: Allocator> {
-    slab_64: Mutex<SlabManager<64, A>>,
-    slab_128: Mutex<SlabManager<128, A>>,
-    slab_256: Mutex<SlabManager<256, A>>,
-    slab_512: Mutex<SlabManager<512, A>>,
-    slab_1024: Mutex<SlabManager<1024, A>>,
-    slab_2048: Mutex<SlabManager<2048, A>>,
+    slab_64: RwLock<SlabManager<64, A>>,
+    slab_128: RwLock<SlabManager<128, A>>,
+    slab_256: RwLock<SlabManager<256, A>>,
+    slab_512: RwLock<SlabManager<512, A>>,
+    slab_1024: RwLock<SlabManager<1024, A>>,
+    slab_2048: RwLock<SlabManager<2048, A>>,
     inner: A,
 }
 
 impl<A: Allocator + Clone> SlabAllocator<A> {
     pub fn new_in(allocator: A) -> Self {
         Self {
-            slab_64: Mutex::new(SlabManager::new_in(allocator.clone())),
-            slab_128: Mutex::new(SlabManager::new_in(allocator.clone())),
-            slab_256: Mutex::new(SlabManager::new_in(allocator.clone())),
-            slab_512: Mutex::new(SlabManager::new_in(allocator.clone())),
-            slab_1024: Mutex::new(SlabManager::new_in(allocator.clone())),
-            slab_2048: Mutex::new(SlabManager::new_in(allocator.clone())),
+            slab_64: RwLock::new(SlabManager::new_in(allocator.clone())),
+            slab_128: RwLock::new(SlabManager::new_in(allocator.clone())),
+            slab_256: RwLock::new(SlabManager::new_in(allocator.clone())),
+            slab_512: RwLock::new(SlabManager::new_in(allocator.clone())),
+            slab_1024: RwLock::new(SlabManager::new_in(allocator.clone())),
+            slab_2048: RwLock::new(SlabManager::new_in(allocator.clone())),
             inner: allocator,
+        }
+    }
+}
+
+impl<A: Allocator> SlabAllocator<A> {
+    pub fn remaining_object_count<const OBJECT_SIZE: usize>(&self) -> usize {
+        assert!(OBJECT_SIZE >= 64);
+        assert!(OBJECT_SIZE < 0x1000);
+        assert!(OBJECT_SIZE.is_power_of_two());
+
+        match OBJECT_SIZE {
+            64 => {
+                let slab_64 = self.slab_64.read();
+                slab_64.remaining_object_count()
+            }
+
+            128 => {
+                let slab_128 = self.slab_128.read();
+                slab_128.remaining_object_count()
+            }
+
+            256 => {
+                let slab_256 = self.slab_256.read();
+                slab_256.remaining_object_count()
+            }
+
+            512 => {
+                let slab_512 = self.slab_512.read();
+                slab_512.remaining_object_count()
+            }
+
+            1024 => {
+                let slab_1024 = self.slab_1024.read();
+                slab_1024.remaining_object_count()
+            }
+
+            2048 => {
+                let slab_2048 = self.slab_2048.read();
+                slab_2048.remaining_object_count()
+            }
+
+            _ => unimplemented!(),
         }
     }
 }
@@ -216,32 +276,32 @@ unsafe impl<A: Allocator + Clone> Allocator for SlabAllocator<A> {
 
         match allocation_size {
             64 => {
-                let mut slab_64 = self.slab_64.lock();
+                let mut slab_64 = self.slab_64.write();
                 slab_64.next_object()
             }
 
             128 => {
-                let mut slab_128 = self.slab_128.lock();
+                let mut slab_128 = self.slab_128.write();
                 slab_128.next_object()
             }
 
             256 => {
-                let mut slab_256 = self.slab_256.lock();
+                let mut slab_256 = self.slab_256.write();
                 slab_256.next_object()
             }
 
             512 => {
-                let mut slab_512 = self.slab_512.lock();
+                let mut slab_512 = self.slab_512.write();
                 slab_512.next_object()
             }
 
             1024 => {
-                let mut slab_1024 = self.slab_1024.lock();
+                let mut slab_1024 = self.slab_1024.write();
                 slab_1024.next_object()
             }
 
             2048 => {
-                let mut slab_2048 = self.slab_2048.lock();
+                let mut slab_2048 = self.slab_2048.write();
                 slab_2048.next_object()
             }
 
@@ -255,7 +315,7 @@ unsafe impl<A: Allocator + Clone> Allocator for SlabAllocator<A> {
 
         match allocation_size {
             64 => {
-                let mut slab_64 = self.slab_64.lock();
+                let mut slab_64 = self.slab_64.write();
 
                 // Safety: Object size matches this slab size, and so is guaranteed to originate from it.
                 unsafe {
@@ -264,7 +324,7 @@ unsafe impl<A: Allocator + Clone> Allocator for SlabAllocator<A> {
             }
 
             128 => {
-                let mut slab_128 = self.slab_128.lock();
+                let mut slab_128 = self.slab_128.write();
 
                 // Safety: Object size matches this slab size, and so is guaranteed to originate from it.
                 unsafe {
@@ -273,7 +333,7 @@ unsafe impl<A: Allocator + Clone> Allocator for SlabAllocator<A> {
             }
 
             256 => {
-                let mut slab_256 = self.slab_256.lock();
+                let mut slab_256 = self.slab_256.write();
 
                 // Safety: Object size matches this slab size, and so is guaranteed to originate from it.
                 unsafe {
@@ -282,7 +342,7 @@ unsafe impl<A: Allocator + Clone> Allocator for SlabAllocator<A> {
             }
 
             512 => {
-                let mut slab_512 = self.slab_512.lock();
+                let mut slab_512 = self.slab_512.write();
 
                 // Safety: Object size matches this slab size, and so is guaranteed to originate from it.
                 unsafe {
@@ -291,7 +351,7 @@ unsafe impl<A: Allocator + Clone> Allocator for SlabAllocator<A> {
             }
 
             1024 => {
-                let mut slab_1024 = self.slab_1024.lock();
+                let mut slab_1024 = self.slab_1024.write();
 
                 // Safety: Object size matches this slab size, and so is guaranteed to originate from it.
                 unsafe {
@@ -300,7 +360,7 @@ unsafe impl<A: Allocator + Clone> Allocator for SlabAllocator<A> {
             }
 
             2048 => {
-                let mut slab_2048 = self.slab_2048.lock();
+                let mut slab_2048 = self.slab_2048.write();
 
                 // Safety: Object size matches this slab size, and so is guaranteed to originate from it.
                 unsafe {

@@ -6,6 +6,4 @@ edition = "2024"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-spin = { version = "0.10.0", default-features = false, features = [
-    "spin_mutex",
-] }
+spin = { version = "0.10.0", default-features = false, features = ["rwlock"] }
