@@ -75,10 +75,30 @@ pub fn slab_allocator_allocate_one() {
 #[test]
 pub fn slab_allocator_allocate_extra() {
     let slab_allocator = SlabAllocator::new_in(Global);
+    assert!(slab_allocator.remaining_object_count::<2048>() == 0);
 
     let allocation_1 = slab_allocator.allocate(LAYOUT_2048).unwrap();
+    assert!(slab_allocator.remaining_object_count::<2048>() == 1);
     let allocation_2 = slab_allocator.allocate(LAYOUT_2048).unwrap();
+    assert!(slab_allocator.remaining_object_count::<2048>() == 0);
     let allocation_3 = slab_allocator.allocate(LAYOUT_2048).unwrap();
+    assert!(slab_allocator.remaining_object_count::<2048>() == 1);
     let allocation_4 = slab_allocator.allocate(LAYOUT_2048).unwrap();
+    assert!(slab_allocator.remaining_object_count::<2048>() == 0);
     let allocation_5 = slab_allocator.allocate(LAYOUT_2048).unwrap();
+    assert!(slab_allocator.remaining_object_count::<2048>() == 1);
+
+    // Safety: Allocations are returned identically to their allocator.
+    unsafe {
+        slab_allocator.deallocate(allocation_1.as_non_null_ptr(), LAYOUT_2048);
+        assert!(slab_allocator.remaining_object_count::<2048>() == 2);
+        slab_allocator.deallocate(allocation_2.as_non_null_ptr(), LAYOUT_2048);
+        assert!(slab_allocator.remaining_object_count::<2048>() == 3);
+        slab_allocator.deallocate(allocation_3.as_non_null_ptr(), LAYOUT_2048);
+        assert!(slab_allocator.remaining_object_count::<2048>() == 4);
+        slab_allocator.deallocate(allocation_4.as_non_null_ptr(), LAYOUT_2048);
+        assert!(slab_allocator.remaining_object_count::<2048>() == 5);
+        slab_allocator.deallocate(allocation_5.as_non_null_ptr(), LAYOUT_2048);
+        assert!(slab_allocator.remaining_object_count::<2048>() == 6);
+    }
 }
