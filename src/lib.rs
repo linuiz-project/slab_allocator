@@ -69,7 +69,7 @@ impl<const OBJECT_SIZE: usize, A: Allocator> Slab<OBJECT_SIZE, A> {
             #[allow(clippy::cast_possible_truncation, clippy::as_conversions)]
             let object_index = self.bitmap.trailing_zeros() as usize;
 
-            debug_assert!((self.bitmap & (1 << object_index)) == 1);
+            debug_assert!((self.bitmap & (1 << object_index)) > 0);
 
             // Clear the bit in the bitmap.
             self.bitmap &= !(1 << object_index);
