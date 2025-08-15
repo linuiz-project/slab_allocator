@@ -49,11 +49,6 @@ impl<const OBJECT_SIZE: usize, A: Allocator> Slab<OBJECT_SIZE, A> {
         start_address..(start_address + self.memory.len())
     }
 
-    /// Total number of objects contained in this slab.
-    pub const fn total_object_count() -> usize {
-        objects_per_page::<OBJECT_SIZE>()
-    }
-
     /// Currently remaining (free) objects in this slab.
     pub fn remaining_object_count(&self) -> usize {
         // `u64::count_ones()` will never overflow a `usize`.
