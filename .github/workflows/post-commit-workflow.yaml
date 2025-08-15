@@ -30,7 +30,7 @@ jobs:
       - name: Install Dependencies
         if: steps.cache.outputs.cache-hit != 'true'
         run: |
-          rustup toolchain install --profile minimal --component rustfmt,clippy,miri $NIGHTLY_VERSION
+          rustup toolchain install --profile minimal --component rust-src,rustfmt,clippy,miri $NIGHTLY_VERSION
           cargo install cargo-sort
 
       - name: Configure Environment
